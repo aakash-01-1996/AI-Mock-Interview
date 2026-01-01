@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "@/utils/db";
 import { MockInterview } from "@/utils/schema";
+import { mockDB } from "@/utils/mockData";
 import { eq } from "drizzle-orm";
 import QuestionsSection from "./_components/QuestionsSection";
 import RecordAnswerSection from "./_components/RecordAnswerSection";
@@ -18,15 +19,37 @@ function StartInterview({ params }) {
   }, []);
 
   const GetInterviewDetails = async () => {
-    const result = await db
-      .select()
-      .from(MockInterview)
-      .where(eq(MockInterview.mockId, params.interviewId));
+    // Check if database is available, otherwise use mock storage
+    if (db) {
+      try {
+        const result = await db
+          .select()
+          .from(MockInterview)
+          .where(eq(MockInterview.mockId, params.interviewId));
 
-    const jsonMockResp = JSON.parse(result[0].jsonMockResp);
-    console.log(jsonMockResp);
-    setMockInterviewQuestion(jsonMockResp);
-    setInterviewData(result[0]);
+        const jsonMockResp = JSON.parse(result[0].jsonMockResp);
+        console.log(jsonMockResp);
+        setMockInterviewQuestion(jsonMockResp);
+        setInterviewData(result[0]);
+      } catch (error) {
+        console.log("Database error, using demo mode:", error);
+        // Fall back to mock storage
+        loadFromMockDB();
+      }
+    } else {
+      // Use demo mode
+      console.log("Using demo mode for interview start");
+      loadFromMockDB();
+    }
+
+    function loadFromMockDB() {
+      const result = mockDB.getInterview(params.interviewId);
+      if (result) {
+        const jsonMockResp = JSON.parse(result.jsonMockResp);
+        setMockInterviewQuestion(jsonMockResp);
+        setInterviewData(result);
+      }
+    }
   };
 
   return (

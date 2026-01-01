@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "@/utils/db";
 import { MockInterview } from "@/utils/schema";
+import { mockDB } from "@/utils/mockData";
 import { useUser } from "@clerk/nextjs";
 import { desc, eq } from "drizzle-orm";
 import InterviewItemCard from "./InterviewItemCard";
@@ -15,16 +16,31 @@ function InterviewList() {
   }, [user]);
 
   const GetInterviewList = async () => {
-    const result = await db
-      .select()
-      .from(MockInterview)
-      .where(
-        eq(MockInterview.createdBy, user?.primaryEmailAddress?.emailAddress)
-      )
-      .orderBy(desc(MockInterview.id));
+    const userEmail = user?.primaryEmailAddress?.emailAddress;
 
-    console.log(result);
-    setInterviewList(result);
+    // Check if database is available, otherwise use mock storage
+    if (db) {
+      try {
+        const result = await db
+          .select()
+          .from(MockInterview)
+          .where(eq(MockInterview.createdBy, userEmail))
+          .orderBy(desc(MockInterview.id));
+
+        console.log(result);
+        setInterviewList(result);
+      } catch (error) {
+        console.log("Database error, using demo mode:", error);
+        // Fall back to mock storage
+        const result = mockDB.getInterviews(userEmail);
+        setInterviewList(result);
+      }
+    } else {
+      // Use demo mode
+      console.log("Using demo mode for interview list");
+      const result = mockDB.getInterviews(userEmail);
+      setInterviewList(result);
+    }
   };
 
   return (

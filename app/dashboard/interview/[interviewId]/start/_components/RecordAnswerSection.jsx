@@ -7,6 +7,7 @@ import { Mic, StopCircle } from "lucide-react";
 import { toast } from "sonner";
 import { chatSession } from "@/utils/GeminiAIModel";
 import { generateFeedback as generateLocalFeedback } from "@/utils/localAI";
+import { mockDB } from "@/utils/mockData";
 import { db } from "@/utils/db";
 import { UserAnswer } from "@/utils/schema";
 import { useUser } from "@clerk/nextjs";
@@ -100,18 +101,37 @@ function RecordAnswerSection({
       );
     }
 
-    const resp = await db.insert(UserAnswer).values({
+    const answerData = {
       mockIdRef: interviewData?.mockId,
       question: currentQuestion?.question,
       correctAns: currentQuestion?.answer,
       userAns: userAnswer,
       feedback: JsonFeedbackResp?.feedback,
       rating: JsonFeedbackResp?.rating,
-      userEmail: user?.primaryEmailAddress?.emailAddress,
+      userEmail: user?.primaryEmailAddress?.emailAddress || "demo@example.com",
       createdAt: moment().format("DD-MM-YYYY"),
-    });
+    };
 
-    if (resp) {
+    // Check if database is available, otherwise use mock storage
+    let success = false;
+    if (db) {
+      try {
+        const resp = await db.insert(UserAnswer).values(answerData);
+        success = !!resp;
+      } catch (error) {
+        console.log("Database error, using demo mode:", error);
+        // Fall back to mock storage
+        mockDB.saveUserAnswer(answerData);
+        success = true;
+      }
+    } else {
+      // Use demo mode
+      console.log("Using demo mode for saving answer");
+      mockDB.saveUserAnswer(answerData);
+      success = true;
+    }
+
+    if (success) {
       toast("User Answer recorded successfully");
       setUserAnswer("");
       setResults([]);

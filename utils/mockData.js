@@ -1,4 +1,8 @@
-// Mock data store - simulates database
+// Mock data store - simulates database for demo mode
+// This allows the app to work without any external database
+
+import { generateInterviewQuestions, generateFeedback } from "./localAI";
+
 let mockInterviews = [
   {
     id: 1,
@@ -34,7 +38,7 @@ let mockInterviews = [
     jobPostion: "Frontend Developer",
     jobDesc: "React, JavaScript, CSS, HTML",
     jobExperience: "2",
-    createdBy: "test@example.com",
+    createdBy: "demo@example.com",
     createdAt: "12-24-2025",
   },
   {
@@ -70,7 +74,7 @@ let mockInterviews = [
     jobPostion: "Backend Developer",
     jobDesc: "Node.js, Express, MongoDB, PostgreSQL",
     jobExperience: "3",
-    createdBy: "test@example.com",
+    createdBy: "demo@example.com",
     createdAt: "12-23-2025",
   },
 ];
@@ -79,72 +83,12 @@ let mockUserAnswers = [];
 let nextInterviewId = 3;
 let nextAnswerId = 1;
 
-// Mock questions generator based on job details
-const generateMockQuestions = (jobPosition, jobDesc, jobExperience) => {
-  const questions = [
-    {
-      question: `Tell me about your experience with ${
-        jobDesc.split(",")[0]?.trim() || "this technology"
-      }.`,
-      answer: `A strong answer would demonstrate practical experience with ${jobDesc
-        .split(",")[0]
-        ?.trim()}, including specific projects, challenges overcome, and measurable outcomes.`,
-    },
-    {
-      question: `As a ${jobPosition}, how do you approach problem-solving?`,
-      answer:
-        "A good approach includes: understanding the problem fully, breaking it into smaller parts, researching solutions, implementing incrementally, testing thoroughly, and iterating based on feedback.",
-    },
-    {
-      question: `With ${jobExperience} years of experience, what's the most challenging project you've worked on?`,
-      answer:
-        "Describe a specific project with context, your role, challenges faced, actions taken, and results achieved. Use the STAR method (Situation, Task, Action, Result).",
-    },
-    {
-      question: `How do you stay updated with the latest trends in ${jobPosition.toLowerCase()}?`,
-      answer:
-        "Good practices include: following industry blogs, taking online courses, attending conferences/meetups, contributing to open source, building side projects, and networking with peers.",
-    },
-    {
-      question: "Where do you see yourself in 5 years?",
-      answer:
-        "Show ambition aligned with the role - mention skill growth, potential leadership, deeper expertise in the field, and contributing to meaningful projects.",
-    },
-  ];
-  return questions;
-};
-
-// Generate feedback for an answer
-const generateMockFeedback = (question, userAnswer) => {
-  const answerLength = userAnswer?.length || 0;
-  let rating, feedback;
-
-  if (answerLength < 50) {
-    rating = "3/10";
-    feedback =
-      "Your answer is too brief. Try to elaborate more with specific examples and details. A complete answer should demonstrate your knowledge and experience.";
-  } else if (answerLength < 150) {
-    rating = "5/10";
-    feedback =
-      "Decent attempt but could use more depth. Consider adding specific examples, metrics, or outcomes to strengthen your response.";
-  } else if (answerLength < 300) {
-    rating = "7/10";
-    feedback =
-      "Good answer with reasonable detail. To improve further, you could add more specific technical details or quantifiable achievements.";
-  } else {
-    rating = "8/10";
-    feedback =
-      "Excellent comprehensive answer! You've provided good detail. Minor improvement: ensure you're staying focused on the key points.";
-  }
-
-  return { rating, feedback };
-};
-
 export const mockDB = {
   // Get all interviews for a user
   getInterviews: (userEmail) => {
+    // In demo mode, show all interviews including demo ones
     return mockInterviews.filter(
-      (i) => i.createdBy === userEmail || i.createdBy === "test@example.com"
+      (i) => i.createdBy === userEmail || i.createdBy === "demo@example.com"
     );
   },
 
@@ -153,9 +97,9 @@ export const mockDB = {
     return mockInterviews.find((i) => i.mockId === mockId);
   },
 
-  // Create new interview
+  // Create new interview using localAI for smart questions
   createInterview: (data) => {
-    const questions = generateMockQuestions(
+    const questions = generateInterviewQuestions(
       data.jobPosition,
       data.jobDesc,
       data.jobExperience
@@ -167,18 +111,19 @@ export const mockDB = {
       jobPostion: data.jobPosition,
       jobDesc: data.jobDesc,
       jobExperience: data.jobExperience,
-      createdBy: data.createdBy,
+      createdBy: data.createdBy || "demo@example.com",
       createdAt: data.createdAt,
     };
     mockInterviews.unshift(newInterview);
-    return { mockId: newInterview.mockId };
+    return newInterview;
   },
 
-  // Save user answer with feedback
+  // Save user answer with feedback using localAI
   saveUserAnswer: (data) => {
-    const { rating, feedback } = generateMockFeedback(
+    const { rating, feedback } = generateFeedback(
       data.question,
-      data.userAns
+      data.userAns,
+      data.correctAns
     );
     const newAnswer = {
       id: nextAnswerId++,
@@ -188,7 +133,7 @@ export const mockDB = {
       userAns: data.userAns,
       feedback: feedback,
       rating: rating,
-      userEmail: data.userEmail,
+      userEmail: data.userEmail || "demo@example.com",
       createdAt: data.createdAt,
     };
     mockUserAnswers.push(newAnswer);
@@ -203,12 +148,9 @@ export const mockDB = {
   // Get all answers for a user
   getUserAnswers: (userEmail) => {
     return mockUserAnswers.filter(
-      (a) => a.userEmail === userEmail || a.userEmail === "test@example.com"
+      (a) => a.userEmail === userEmail || a.userEmail === "demo@example.com"
     );
   },
 };
 
-export const mockAI = {
-  generateQuestions: generateMockQuestions,
-  generateFeedback: generateMockFeedback,
-};
+export default mockDB;

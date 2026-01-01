@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { chatSession } from "@/utils/GeminiAIModel";
 import { generateInterviewQuestions } from "@/utils/localAI";
+import { mockDB } from "@/utils/mockData";
 import { Loader, LoaderCircle } from "lucide-react";
 import { db } from "@/utils/db";
 import { MockInterview } from "@/utils/schema";
@@ -38,6 +39,7 @@ function AddNewInterview() {
     console.log(jobPosition, jobDesc, jobExperience);
 
     let MockJsonResp;
+    const mockId = uuidv4();
 
     // Check if Gemini API is available, otherwise use local AI
     if (chatSession) {
@@ -83,29 +85,56 @@ function AddNewInterview() {
     setJsonResponse(MockJsonResp);
 
     if (MockJsonResp) {
-      const mockId = uuidv4();
-      const resp = await db
-        .insert(MockInterview)
-        .values({
-          mockId: mockId,
-          jsonMockResp: MockJsonResp,
-          jobPostion: jobPosition,
-          jobDesc: jobDesc,
-          jobExperience: jobExperience,
-          createdBy: user?.primaryEmailAddress?.emailAddress,
-          createdAt: moment().format("MM-DD-YYYY"),
-        })
-        .returning({ mockId: MockInterview.mockId });
+      // Check if database is available, otherwise use mock storage
+      if (db) {
+        try {
+          const resp = await db
+            .insert(MockInterview)
+            .values({
+              mockId: mockId,
+              jsonMockResp: MockJsonResp,
+              jobPostion: jobPosition,
+              jobDesc: jobDesc,
+              jobExperience: jobExperience,
+              createdBy: user?.primaryEmailAddress?.emailAddress,
+              createdAt: moment().format("MM-DD-YYYY"),
+            })
+            .returning({ mockId: MockInterview.mockId });
 
-      console.log("Inserted ID: ", resp);
-      if (resp) {
-        setOpenDialog(false);
-        router.push("/dashboard/interview/" + mockId);
+          console.log("Inserted ID: ", resp);
+          if (resp) {
+            setOpenDialog(false);
+            router.push("/dashboard/interview/" + mockId);
+          }
+        } catch (error) {
+          console.log("Database error, using demo mode:", error);
+          // Fall back to mock storage
+          useDemoMode();
+        }
+      } else {
+        // Use demo mode (in-memory storage)
+        useDemoMode();
       }
     } else {
       console.log("ERROR");
     }
     setLoading(false);
+
+    function useDemoMode() {
+      mockDB.createInterview({
+        mockId: mockId,
+        jsonMockResp: MockJsonResp,
+        jobPosition: jobPosition,
+        jobDesc: jobDesc,
+        jobExperience: jobExperience,
+        createdBy:
+          user?.primaryEmailAddress?.emailAddress || "demo@example.com",
+        createdAt: moment().format("MM-DD-YYYY"),
+      });
+      console.log("Using demo mode - data stored in memory");
+      setOpenDialog(false);
+      router.push("/dashboard/interview/" + mockId);
+    }
   };
   return (
     <div>

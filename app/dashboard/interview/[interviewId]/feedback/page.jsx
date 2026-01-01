@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "@/utils/db";
 import { UserAnswer } from "@/utils/schema";
+import { mockDB } from "@/utils/mockData";
 import { eq } from "drizzle-orm";
 import {
   Collapsible,
@@ -21,14 +22,43 @@ function Feedback({ params }) {
   }, []);
 
   const GetFeedback = async () => {
-    const result = await db
-      .select()
-      .from(UserAnswer)
-      .where(eq(UserAnswer.mockIdRef, params.interviewId))
-      .orderBy(UserAnswer.id);
+    // Check if database is available, otherwise use mock storage
+    if (db) {
+      try {
+        const result = await db
+          .select()
+          .from(UserAnswer)
+          .where(eq(UserAnswer.mockIdRef, params.interviewId))
+          .orderBy(UserAnswer.id);
 
-    console.log(result);
-    setFeedbackList(result);
+        console.log(result);
+        setFeedbackList(result);
+      } catch (error) {
+        console.log("Database error, using demo mode:", error);
+        // Fall back to mock storage
+        const result = mockDB.getFeedback(params.interviewId);
+        setFeedbackList(result);
+      }
+    } else {
+      // Use demo mode
+      console.log("Using demo mode for feedback");
+      const result = mockDB.getFeedback(params.interviewId);
+      setFeedbackList(result);
+    }
+  };
+
+  // Calculate overall rating from feedback
+  const getOverallRating = () => {
+    if (feedbackList.length === 0) return "N/A";
+    const ratings = feedbackList
+      .map((item) => {
+        const match = item.rating?.match(/(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      })
+      .filter((r) => r > 0);
+    if (ratings.length === 0) return "N/A";
+    const avg = Math.round(ratings.reduce((a, b) => a + b, 0) / ratings.length);
+    return `${avg}/10`;
   };
 
   return (
@@ -46,7 +76,7 @@ function Feedback({ params }) {
             Here is your interview feedback
           </h2>
           <h2 className="text-primary text-lg my-3">
-            Your overall interview rating: <strong>7/10</strong>
+            Your overall interview rating: <strong>{getOverallRating()}</strong>
           </h2>
 
           <h2 className="text-sm text-gray-500">

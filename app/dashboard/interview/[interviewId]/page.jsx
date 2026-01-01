@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { db } from "@/utils/db";
 import { MockInterview } from "@/utils/schema";
+import { mockDB } from "@/utils/mockData";
 import { eq } from "drizzle-orm";
 import { Lightbulb, WebcamIcon } from "lucide-react";
 import Webcam from "react-webcam";
@@ -17,12 +18,27 @@ function Interview({ params }) {
   }, []);
 
   const GetInterviewDetails = async () => {
-    const result = await db
-      .select()
-      .from(MockInterview)
-      .where(eq(MockInterview.mockId, params.interviewId));
+    // Check if database is available, otherwise use mock storage
+    if (db) {
+      try {
+        const result = await db
+          .select()
+          .from(MockInterview)
+          .where(eq(MockInterview.mockId, params.interviewId));
 
-    setInterviewData(result[0]);
+        setInterviewData(result[0]);
+      } catch (error) {
+        console.log("Database error, using demo mode:", error);
+        // Fall back to mock storage
+        const result = mockDB.getInterview(params.interviewId);
+        setInterviewData(result);
+      }
+    } else {
+      // Use demo mode
+      console.log("Using demo mode for interview details");
+      const result = mockDB.getInterview(params.interviewId);
+      setInterviewData(result);
+    }
   };
 
   return (
