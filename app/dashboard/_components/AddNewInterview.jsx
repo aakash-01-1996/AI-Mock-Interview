@@ -13,11 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { chatSession } from "@/utils/GeminiAIModel";
+import { generateInterviewQuestions } from "@/utils/localAI";
 import { Loader, LoaderCircle } from "lucide-react";
 import { db } from "@/utils/db";
 import { MockInterview } from "@/utils/schema";
 import { useUser } from "@clerk/nextjs";
 import moment from "moment";
+import { useRouter } from "next/navigation";
 
 function AddNewInterview() {
   const [openDialog, setOpenDialog] = useState(false);
@@ -28,36 +30,64 @@ function AddNewInterview() {
   const [loading, setLoading] = useState(false);
   const [jsonResponse, setJsonResponse] = useState([]);
   const { user } = useUser();
+  const router = useRouter();
 
   const onSubmit = async (e) => {
     setLoading(true);
     e.preventDefault();
     console.log(jobPosition, jobDesc, jobExperience);
 
-    const InputPrompt =
-      "Job Position: " +
-      jobPosition +
-      ", Job Description: " +
-      jobDesc +
-      ", Years of Experience: " +
-      jobExperience +
-      ". On given information please provide " +
-      process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT +
-      " interview questions with answers in JSON format. Give questions and answers as fields in JSON";
+    let MockJsonResp;
 
-    const result = await chatSession.sendMessage(InputPrompt);
-    const MockJsonResp = result.response
-      .text()
-      .replace("```json", " ")
-      .replace("```", " ");
-    console.log(JSON.parse(MockJsonResp));
+    // Check if Gemini API is available, otherwise use local AI
+    if (chatSession) {
+      try {
+        const InputPrompt =
+          "Job Position: " +
+          jobPosition +
+          ", Job Description: " +
+          jobDesc +
+          ", Years of Experience: " +
+          jobExperience +
+          ". On given information please provide " +
+          process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT +
+          " interview questions with answers in JSON format. Give questions and answers as fields in JSON";
+
+        const result = await chatSession.sendMessage(InputPrompt);
+        MockJsonResp = result.response
+          .text()
+          .replace("```json", " ")
+          .replace("```", " ");
+        console.log(JSON.parse(MockJsonResp));
+      } catch (error) {
+        console.log("Gemini API error, falling back to local AI:", error);
+        // Fall back to local AI
+        const questions = generateInterviewQuestions(
+          jobPosition,
+          jobDesc,
+          jobExperience
+        );
+        MockJsonResp = JSON.stringify(questions);
+      }
+    } else {
+      // Use local AI when Gemini is not configured
+      console.log("Using local AI for question generation");
+      const questions = generateInterviewQuestions(
+        jobPosition,
+        jobDesc,
+        jobExperience
+      );
+      MockJsonResp = JSON.stringify(questions);
+    }
+
     setJsonResponse(MockJsonResp);
 
     if (MockJsonResp) {
+      const mockId = uuidv4();
       const resp = await db
         .insert(MockInterview)
         .values({
-          mockId: uuidv4(),
+          mockId: mockId,
           jsonMockResp: MockJsonResp,
           jobPostion: jobPosition,
           jobDesc: jobDesc,
@@ -68,6 +98,10 @@ function AddNewInterview() {
         .returning({ mockId: MockInterview.mockId });
 
       console.log("Inserted ID: ", resp);
+      if (resp) {
+        setOpenDialog(false);
+        router.push("/dashboard/interview/" + mockId);
+      }
     } else {
       console.log("ERROR");
     }

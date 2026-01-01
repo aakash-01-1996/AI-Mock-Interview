@@ -6,6 +6,7 @@ import useSpeechToText from "react-hook-speech-to-text";
 import { Mic, StopCircle } from "lucide-react";
 import { toast } from "sonner";
 import { chatSession } from "@/utils/GeminiAIModel";
+import { generateFeedback as generateLocalFeedback } from "@/utils/localAI";
 import { db } from "@/utils/db";
 import { UserAnswer } from "@/utils/schema";
 import { useUser } from "@clerk/nextjs";
@@ -57,28 +58,52 @@ function RecordAnswerSection({
     console.log(userAnswer);
     setLoading(true);
 
-    const feedbackPrompt =
-      "Question: " +
-      mockInterviewQuestion[activeQuestionIndex]?.question +
-      ", User Answer: " +
-      userAnswer +
-      ". Based on the question and user answer for the interview question, " +
-      "please give us rating for answer and feedback as area of improvement if any " +
-      "in just 3 to 5 lines to improve it in JSON format with rating field and feedback field";
+    let JsonFeedbackResp;
+    const currentQuestion = mockInterviewQuestion[activeQuestionIndex];
 
-    const result = await chatSession.sendMessage(feedbackPrompt);
+    // Check if Gemini API is available, otherwise use local AI
+    if (chatSession) {
+      try {
+        const feedbackPrompt =
+          "Question: " +
+          currentQuestion?.question +
+          ", User Answer: " +
+          userAnswer +
+          ". Based on the question and user answer for the interview question, " +
+          "please give us rating for answer and feedback as area of improvement if any " +
+          "in just 3 to 5 lines to improve it in JSON format with rating field and feedback field";
 
-    const mockJsonResp = result.response
-      .text()
-      .replace("```json", "")
-      .replace("```", "");
-    console.log(mockJsonResp);
-    const JsonFeedbackResp = JSON.parse(mockJsonResp);
+        const result = await chatSession.sendMessage(feedbackPrompt);
+
+        const mockJsonResp = result.response
+          .text()
+          .replace("```json", "")
+          .replace("```", "");
+        console.log(mockJsonResp);
+        JsonFeedbackResp = JSON.parse(mockJsonResp);
+      } catch (error) {
+        console.log("Gemini API error, falling back to local AI:", error);
+        // Fall back to local AI
+        JsonFeedbackResp = generateLocalFeedback(
+          currentQuestion?.question,
+          userAnswer,
+          currentQuestion?.answer
+        );
+      }
+    } else {
+      // Use local AI when Gemini is not configured
+      console.log("Using local AI for feedback generation");
+      JsonFeedbackResp = generateLocalFeedback(
+        currentQuestion?.question,
+        userAnswer,
+        currentQuestion?.answer
+      );
+    }
 
     const resp = await db.insert(UserAnswer).values({
       mockIdRef: interviewData?.mockId,
-      question: mockInterviewQuestion[activeQuestionIndex]?.question,
-      correctAns: mockInterviewQuestion[activeQuestionIndex]?.answer,
+      question: currentQuestion?.question,
+      correctAns: currentQuestion?.answer,
       userAns: userAnswer,
       feedback: JsonFeedbackResp?.feedback,
       rating: JsonFeedbackResp?.rating,
